@@ -1,2 +1,2 @@
 # PSXBD
-WIP PSX BIOS decompilation for personal use
+WIP commented PS1 BIOS decompilation for personal use
