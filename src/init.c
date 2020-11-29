@@ -2,6 +2,7 @@
 #include "../include/mem.h"
 #include "../include/cop.h"
 #include "../include/init.h"
+#include "../include/types.h"
 
 void init_bios_and_ram() {
     write_word(rBIOS_MEM_CTRL, 0x13243F); // Init the BIOS ROM control register
@@ -28,19 +29,17 @@ void init_expansion_mem() {
     write_word(rEXPANSION2_CTRL, 0x70777); // TODO: Double check
 }
 
-
-void init() {
-    init_bios_and_ram();
-    init_expansion_mem();
+void init_cache() {
     write_cop0_reg(STATUS, 0x10000); // Turn "Isolate data cache in cop0 on"
                                      // Per nocash: When isolated, all load and store operations are targetted
                                      // to the Data cache, and never the main memory.
                                      // (Used by PSX Kernel, in combination with Port FFFE0130h)
 
-    asm("nop"); // wait for that to take effect
+    asm("nop"); // wait for that change to take effect
     asm("nop");
 
-    for (int i = 0; i != 0xF80; i += 0x80) { // loop to initialize some of BIOS RAM to 0. This is some very ugly programming huh
+    // LAB_0xBFC00248
+    for (u32 i = 0; i != 0xF80; i += 0x80) { // loop to initialize some of the data cache to 0. This is some very ugly programming huh
         write_word(i, 0);
         write_word(i + 0x10, 0);
         write_word(i + 0x20, 0);
@@ -52,7 +51,35 @@ void init() {
     }
 
     write_cop0_reg(STATUS, 0); // Turn cache isolation off
-    asm("nop"); // small delay
+    asm("nop"); // small delay for change to take effect
     write_word(rCACHE_CONTROL, 0x800); // Enable code cache
     write_cop0_reg(STATUS, 0x10000); // Re-enable cache isolation?
+    asm("nop"); // small delay for change to take effect
+    asm("nop");
+
+    // LAB_0xBFC002A0
+    for (u32 i = 0; i != 0xF80; i += 0x80) { // initialize data cache... again? 
+        #pragma gcc unroll 32 // This inner loop is completely unrolled in the binary. Gotta get that epic 0.0003ns speed boost when booting
+        for (u32 j = 0; j < 0x80; j += 4) {
+            write_word (i + j, 0);
+        }
+    }
+
+    write_cop0_reg(STATUS, 0); // Turn cache isolation off
+    
+    // After turning cache isolation off, the BIOS spends some time reading from uninitialized RAM
+    // address 0xA0000000, then does nothing with the value it reads. Don't ask why.
+    #pragma gcc unroll 8
+    for (int i = 0; i < 8; i++) {
+        volatile u32 temp = read_word(0xA0000000);
+    }
+
+    write_word(rCACHE_CONTROL, 0x0001E988); // finish off cache initialization by writing to cache control one last time
+}
+
+
+void init() {
+    init_bios_and_ram();
+    init_expansion_mem();
+    init_cache();
 }
