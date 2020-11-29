@@ -16,8 +16,8 @@ void init_bios_and_ram() {
 
 }
 
-// Initializes some expansion memory ports, mainly the memory size/delay ones and the base addresses for Expansion 1/2
-// A lot of these, like the expansion 1/2 base ones tend to not be changed by software
+/// Initializes some expansion memory ports, mainly the memory size/delay ones and the base addresses for Expansion 1/2
+/// A lot of these, like the expansion 1/2 base ones tend to not be changed by software
 void init_expansion_mem() {
     write_word(rCOM_DELAY, 0x31125); // Initialize COM delay
     write_word(rEXPANSION1_BASE, 0x1F000000); // Initialize the Expansion 1 Base Address register (This is usually not changed by games).
@@ -29,6 +29,7 @@ void init_expansion_mem() {
     write_word(rEXPANSION2_CTRL, 0x70777); // TODO: Double check
 }
 
+/// Initializes the cache
 void init_cache() {
     write_cop0_reg(STATUS, 0x10000); // Turn "Isolate data cache in cop0 on"
                                      // Per nocash: When isolated, all load and store operations are targetted
@@ -77,9 +78,27 @@ void init_cache() {
     write_word(rCACHE_CONTROL, 0x0001E988); // finish off cache initialization by writing to cache control one last time
 }
 
+/// Sets some cop0 regs to 0
+void init_cop0() { 
+    write_cop0_reg(DCIC, 0);
+    write_cop0_reg(BPC, 0);
+    write_cop0_reg(BDA, 0);
+    write_cop0_reg(JUMPDEST, 0);
+    write_cop0_reg(BDAM, 0);
+    write_cop0_reg(BPCM, 0);
+    write_cop0_reg(STATUS, 0); // STATUS is already 0 by this time but cheers
+    write_cop0_reg(CAUSE, 0);
+}
 
 void init() {
     init_bios_and_ram();
     init_expansion_mem();
     init_cache();
+    init_cop0();
+
+    // LAB_0xBFC003A8
+    for (u32 i = 0xA0009000; i < 0xA000C160; i += 4) {  // Initialize some of Kernel RAM to 0
+        write_word(i, 0);
+    }
+    write_word(rRAM_SIZE, 0xB88); // Write 0xB88 to RAM_SIZE... again!
 }
